@@ -24,6 +24,10 @@ dependencies:
   # Theme mode & alert threshold saved across restarts
   shared_preferences: ^2.3.3
 
+  # ─── Networking ─────────────────────────────────────────────────────────────
+  # WebSocket client for ESP32 real-time connection
+  web_socket_channel: ^2.4.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

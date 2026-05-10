@@ -1,33 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
+import 'presentation/providers/settings_provider.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ─── Real hardware integration checklist ─────────────────────────────────
-  // When you're ready to connect to real IoT hardware, do the following here:
-  //
-  // 1. HTTP/REST (ESP8266 or ESP32 web server):
-  //    No initialisation needed. Just swap MockIrrigationService with
-  //    HttpIrrigationService(baseUrl: 'http://192.168.1.XX') in
-  //    lib/presentation/providers/irrigation_provider.dart.
-  //
-  // 2. MQTT:
-  //    Initialize your MQTT client here before runApp.
-  //    Pass the connected client into MqttIrrigationService.
-  //
-  // 3. Firebase Realtime Database:
-  //    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  //    Then swap MockIrrigationService with FirebaseIrrigationService() in the provider.
-  // ─────────────────────────────────────────────────────────────────────────
+  // Read the saved ESP32 IP before building the widget tree so that
+  // espIpProvider is synchronously seeded — no FutureProvider cascade needed.
+  final prefs = await SharedPreferences.getInstance();
+  final savedIp = prefs.getString('esp32_ip');
 
   runApp(
-    // ProviderScope is the Riverpod root — required for all providers to work.
-    const ProviderScope(
-      child: IrrigationApp(),
+    ProviderScope(
+      overrides: [
+        espIpProvider.overrideWith((ref) => savedIp),
+      ],
+      child: const IrrigationApp(),
     ),
   );
 }
-

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../providers/settings_provider.dart';
+import '../setup/ip_setup_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -12,6 +13,8 @@ class SettingsScreen extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     final threshold = ref.watch(moistureThresholdProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ip = ref.watch(espIpProvider);
+    final wsStatus = ref.watch(wsStatusProvider);
     final cardColor = isDark ? AppColors.surfaceDark2 : Colors.white;
 
     return CustomScrollView(
@@ -142,127 +145,11 @@ class SettingsScreen extends ConsumerWidget {
 
                 // ─── Connection ──────────────────────────────────────────
                 _SectionHeader('Connection', isDark: isDark),
-                Container(
-                  decoration: BoxDecoration(
-                    color: cardColor,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: AppColors.green500.withAlpha(40)),
-                  ),
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: AppColors.ok.withAlpha(25),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.wifi_rounded,
-                                color: AppColors.ok, size: 18),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Mock Data Service',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark
-                                      ? Colors.white
-                                      : Colors.black87,
-                                ),
-                              ),
-                              Text(
-                                'Simulated sensor — no hardware needed',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: isDark
-                                      ? Colors.white38
-                                      : Colors.black38,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.ok.withAlpha(25),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Text(
-                              'ACTIVE',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.ok,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // IoT integration hint
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.info.withAlpha(15),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: AppColors.info.withAlpha(60)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.developer_mode_rounded,
-                                    size: 14, color: AppColors.info),
-                                SizedBox(width: 6),
-                                Text(
-                                  'To connect real hardware:',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.info,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            ...[
-                              '1. Implement IrrigationService for your backend',
-                              '2. Replace MockIrrigationService in irrigation_provider.dart',
-                              '3. HTTP: point to ESP8266 IP on local network',
-                              '4. MQTT: set broker URL and topic prefix',
-                              '5. Firebase: add google-services.json and init',
-                            ].map(
-                              (s) => Padding(
-                                padding: const EdgeInsets.only(top: 3),
-                                child: Text(
-                                  s,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isDark
-                                        ? Colors.white54
-                                        : Colors.black54,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                _ConnectionCard(
+                  ip: ip,
+                  wsStatus: wsStatus,
+                  isDark: isDark,
+                  cardColor: cardColor,
                 ),
 
                 const SizedBox(height: 20),
@@ -395,6 +282,148 @@ class _Divider extends StatelessWidget {
       height: 1,
       indent: 56,
       color: isDark ? Colors.white12 : Colors.black12,
+    );
+  }
+}
+
+class _ConnectionCard extends ConsumerWidget {
+  final String? ip;
+  final WsStatus wsStatus;
+  final bool isDark;
+  final Color cardColor;
+
+  const _ConnectionCard({
+    required this.ip,
+    required this.wsStatus,
+    required this.isDark,
+    required this.cardColor,
+  });
+
+  (Color, String) _statusStyle() => switch (wsStatus) {
+        WsStatus.connected => (AppColors.ok, 'CONNECTED'),
+        WsStatus.connecting => (Colors.orange, 'CONNECTING'),
+        WsStatus.error => (AppColors.dry, 'ERROR'),
+        WsStatus.disconnected => (Colors.grey, 'OFFLINE'),
+      };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isMock = ip == null || ip == '__mock__';
+    final displayIp = isMock ? 'Mock data' : ip!;
+    final (statusColor, statusLabel) = _statusStyle();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.green500.withAlpha(40)),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Status row ──────────────────────────────────────────────────
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: (isMock ? Colors.grey : statusColor).withAlpha(25),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isMock ? Icons.science_outlined : Icons.wifi_rounded,
+                  color: isMock ? Colors.grey : statusColor,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isMock ? 'Mock Data Service' : 'ESP32 WebSocket',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      displayIp,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? Colors.white38 : Colors.black38,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (isMock ? AppColors.ok : statusColor).withAlpha(25),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  isMock ? 'ACTIVE' : statusLabel,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: isMock ? AppColors.ok : statusColor,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // ── Action buttons ───────────────────────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const IpSetupScreen()),
+                  ),
+                  icon: const Icon(Icons.edit_rounded, size: 16),
+                  label: Text(isMock ? 'Connect ESP32' : 'Change IP'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.green600,
+                    side: BorderSide(color: AppColors.green600),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    textStyle: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ),
+              if (!isMock) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      await ref
+                          .read(espIpRepositoryProvider)
+                          .clearIp();
+                      ref.read(espIpProvider.notifier).state = '__mock__';
+                    },
+                    icon: const Icon(Icons.science_outlined, size: 16),
+                    label: const Text('Use Mock'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.grey,
+                      side: const BorderSide(color: Colors.grey),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      textStyle: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

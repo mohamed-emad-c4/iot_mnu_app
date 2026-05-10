@@ -6,37 +6,43 @@
 ///                              ──►  pumpControlProvider
 ///                              ──►  historyProvider
 ///
-/// To swap the data source, change ONE line in [irrigationServiceProvider].
 library;
+
+import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/services/irrigation_service.dart';
 import '../../data/services/mock_irrigation_service.dart';
+import '../../data/services/websocket_irrigation_service.dart';
 import '../../domain/entities/pump_control.dart';
 import '../../domain/entities/sensor_reading.dart';
+import 'settings_provider.dart';
 
 // ─── 1. Service provider ──────────────────────────────────────────────────────
-//
-// ┌──────────────────────────────────────────────────────────────────────────┐
-// │  TO CONNECT REAL HARDWARE:                                               │
-// │  Replace `MockIrrigationService()` with your concrete implementation:    │
-// │                                                                          │
-// │  HTTP/REST  → HttpIrrigationService(baseUrl: 'http://192.168.1.42')     │
-// │  MQTT       → MqttIrrigationService(broker: 'mqtt://broker.local')      │
-// │  Firebase   → FirebaseIrrigationService()                                │
-// └──────────────────────────────────────────────────────────────────────────┘
+
 final irrigationServiceProvider = Provider<IrrigationService>((ref) {
-  final service = MockIrrigationService();
+  final ip = ref.watch(espIpProvider);
+
+  if (ip == null || ip == '__mock__') {
+    final service = MockIrrigationService();
+    ref.onDispose(service.dispose);
+    return service;
+  }
+
+  final service = WebSocketIrrigationService(ipAddress: ip);
+  service.onStatusChange = (status) {
+    // Post-frame so we never modify a provider during another provider's build.
+    Future.microtask(
+      () => ref.read(wsStatusProvider.notifier).state = status,
+    );
+  };
   ref.onDispose(service.dispose);
   return service;
 });
 
 // ─── 2. Live sensor stream ────────────────────────────────────────────────────
 
-/// Provides a real-time stream of sensor snapshots.
-/// Every widget that watches this provider automatically rebuilds when
-/// the hardware (or mock) sends a new reading (~every 3 s).
 final sensorStreamProvider = StreamProvider<SensorReading>((ref) {
   return ref.watch(irrigationServiceProvider).sensorStream();
 });
@@ -48,19 +54,16 @@ class PumpControlNotifier extends AsyncNotifier<PumpControl> {
   Future<PumpControl> build() =>
       ref.read(irrigationServiceProvider).getPumpControl();
 
-  /// Toggle pump on/off (manual mode only).
   Future<void> togglePump() async {
     final current = state.valueOrNull;
     if (current == null) return;
     final next = !current.manualRunRequest;
-    // Optimistic update so the UI responds instantly.
     state = AsyncData(
       current.copyWith(manualRunRequest: next, lastChanged: DateTime.now()),
     );
     await ref.read(irrigationServiceProvider).setPumpRunning(next);
   }
 
-  /// Switch between automatic and manual irrigation modes.
   Future<void> setMode(IrrigationMode mode) async {
     final current = state.valueOrNull;
     if (current == null) return;
@@ -70,7 +73,6 @@ class PumpControlNotifier extends AsyncNotifier<PumpControl> {
     await ref.read(irrigationServiceProvider).setIrrigationMode(mode);
   }
 
-  /// Update the flow-rate setpoint [0.0 – 1.0].
   Future<void> setFlowRate(double rate) async {
     final current = state.valueOrNull;
     if (current == null) return;
@@ -88,21 +90,17 @@ final pumpControlProvider =
 
 // ─── 4. History provider ──────────────────────────────────────────────────────
 
-/// Fetches the last 24-hour history of sensor readings.
-/// Invalidate this provider to force a refresh: `ref.invalidate(historyProvider)`.
 final historyProvider = FutureProvider<List<SensorReading>>((ref) {
   return ref.watch(irrigationServiceProvider).getHistory(hours: 24);
 });
 
 // ─── 5. Derived alert providers ───────────────────────────────────────────────
 
-/// True when the latest reading is below the dry threshold (30 %).
 final isDryAlertActiveProvider = Provider<bool>((ref) {
   final reading = ref.watch(sensorStreamProvider).valueOrNull;
   return reading != null && reading.moisturePercent < 30.0;
 });
 
-/// True when the tank is critically low (< 10 %).
 final isTankLowProvider = Provider<bool>((ref) {
   final reading = ref.watch(sensorStreamProvider).valueOrNull;
   return reading != null && reading.tankLevelPercent < 10.0;
