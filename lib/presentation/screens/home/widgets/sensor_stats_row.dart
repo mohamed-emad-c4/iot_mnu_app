@@ -1,22 +1,26 @@
 import 'package:flutter/material.dart';
-import '../../../../core/widgets/gradient_card.dart';
-import '../../../../core/constants/app_colors.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// A horizontal row of 3 metric tiles: Temperature · Flow Rate · Last Updated.
-class SensorStatsRow extends StatelessWidget {
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/gradient_card.dart';
+import '../../../providers/irrigation_provider.dart';
+
+/// A horizontal row of 3 metric tiles: Temperature · Pump Speed · Last Updated.
+class SensorStatsRow extends ConsumerWidget {
   final double? temperature;
-  final double flowRate;
   final DateTime lastUpdated;
 
   const SensorStatsRow({
     super.key,
     required this.temperature,
-    required this.flowRate,
     required this.lastUpdated,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pumpSpeed =
+        ref.watch(pumpControlProvider).valueOrNull?.pumpSpeed ?? 0;
+
     final now = DateTime.now();
     final diff = now.difference(lastUpdated);
     final timeLabel = diff.inSeconds < 10
@@ -40,9 +44,9 @@ class SensorStatsRow extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: MetricTile(
-            icon: Icons.water_rounded,
-            label: 'Flow Rate',
-            value: '${flowRate.toStringAsFixed(1)} L/m',
+            icon: Icons.speed_rounded,
+            label: 'Pump Speed',
+            value: '$pumpSpeed / 255',
             color: AppColors.info,
           ),
         ),

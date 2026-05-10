@@ -1,8 +1,8 @@
 /// Domain entity representing a single snapshot from the irrigation sensor node.
 ///
-/// This entity is hardware-agnostic. Whether the data arrives over HTTP, MQTT,
-/// Firebase, or a direct serial link, it is always normalised into this shape
-/// before reaching the presentation layer.
+/// This entity is hardware-agnostic. Whether the data arrives over WebSocket,
+/// HTTP, MQTT, or Firebase, it is always normalised into this shape before
+/// reaching the presentation layer.
 library;
 
 /// Classification of the current soil moisture.
@@ -38,9 +38,6 @@ class SensorReading {
   /// Ambient temperature in °C. May be null if sensor not fitted.
   final double? temperatureCelsius;
 
-  /// Current water flow rate in L/min. 0 when pump is off.
-  final double flowRateLitersPerMin;
-
   /// Water tank fill level as a percentage [0.0 – 100.0].
   final double tankLevelPercent;
 
@@ -56,7 +53,6 @@ class SensorReading {
   SensorReading({
     required this.moisturePercent,
     this.temperatureCelsius,
-    required this.flowRateLitersPerMin,
     required this.tankLevelPercent,
     required this.isPumpRunning,
     required this.timestamp,
@@ -68,11 +64,9 @@ class SensorReading {
     return MoistureStatus.ok;
   }
 
-  /// Creates a copy with specific fields overridden. Useful for testing.
   SensorReading copyWith({
     double? moisturePercent,
     double? temperatureCelsius,
-    double? flowRateLitersPerMin,
     double? tankLevelPercent,
     bool? isPumpRunning,
     DateTime? timestamp,
@@ -80,7 +74,6 @@ class SensorReading {
     return SensorReading(
       moisturePercent: moisturePercent ?? this.moisturePercent,
       temperatureCelsius: temperatureCelsius ?? this.temperatureCelsius,
-      flowRateLitersPerMin: flowRateLitersPerMin ?? this.flowRateLitersPerMin,
       tankLevelPercent: tankLevelPercent ?? this.tankLevelPercent,
       isPumpRunning: isPumpRunning ?? this.isPumpRunning,
       timestamp: timestamp ?? this.timestamp,

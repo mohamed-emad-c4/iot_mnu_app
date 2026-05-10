@@ -1,7 +1,7 @@
 /// Domain entity that represents the user-facing control state of the pump.
 ///
 /// [SensorReading.isPumpRunning] reflects what the hardware *actually* reports.
-/// [PumpControl] reflects what the *user intends* (mode, manual request, flow rate).
+/// [PumpControl] reflects what the *user intends* (mode, manual request, speed).
 library;
 
 /// Determines who decides when the pump runs.
@@ -29,12 +29,12 @@ class PumpControl {
   /// Manual pump on/off request (only respected in manual mode).
   final bool manualRunRequest;
 
-  /// Flow rate as a fraction [0.0 – 1.0] of the pump's maximum capacity.
+  /// PWM duty cycle sent to the L298N motor driver [0 – 255].
   ///
-  /// Map to hardware:
-  ///   - Relay (on/off only): treat any value > 0 as ON.
-  ///   - MOSFET / PWM: multiply by 255 for analogWrite duty cycle.
-  final double flowRate;
+  /// 0   = motor off (even if pump_on command was sent)
+  /// 200 = default speed used by ESP32 firmware
+  /// 255 = maximum speed
+  final int pumpSpeed;
 
   /// When this control state was last changed by the user.
   final DateTime lastChanged;
@@ -42,20 +42,20 @@ class PumpControl {
   const PumpControl({
     required this.mode,
     required this.manualRunRequest,
-    required this.flowRate,
+    required this.pumpSpeed,
     required this.lastChanged,
   });
 
   PumpControl copyWith({
     IrrigationMode? mode,
     bool? manualRunRequest,
-    double? flowRate,
+    int? pumpSpeed,
     DateTime? lastChanged,
   }) {
     return PumpControl(
       mode: mode ?? this.mode,
       manualRunRequest: manualRunRequest ?? this.manualRunRequest,
-      flowRate: flowRate ?? this.flowRate,
+      pumpSpeed: pumpSpeed ?? this.pumpSpeed,
       lastChanged: lastChanged ?? this.lastChanged,
     );
   }
@@ -63,7 +63,7 @@ class PumpControl {
   factory PumpControl.initial() => PumpControl(
         mode: IrrigationMode.automatic,
         manualRunRequest: false,
-        flowRate: 0.6,
+        pumpSpeed: 200,
         lastChanged: DateTime.now(),
       );
 }

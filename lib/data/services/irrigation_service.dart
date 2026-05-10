@@ -47,12 +47,12 @@ abstract class IrrigationService {
   /// Firebase → `ref('pump/mode').set('auto')`
   Future<void> setIrrigationMode(IrrigationMode mode);
 
-  /// Sets the pump flow rate [0.0 – 1.0].
+  /// Sets the pump PWM speed [0 – 255].
   ///
-  /// HTTP  → POST /api/pump/flow  body: { "rate": 0.6 }
-  /// MQTT  → Publish `{"cmd":"SET_FLOW","value":153}` (153 = 0.6 × 255) to `irrigation/cmd`
-  /// Firebase → `ref('pump/flowRate').set(0.6)`
-  Future<void> setFlowRate(double rate);
+  /// WebSocket → send `{"command":"set_speed","value":<speed>}` to ESP32
+  /// HTTP  → POST /api/pump/speed  body: { "speed": 200 }
+  /// MQTT  → Publish `{"cmd":"SET_SPEED","value":200}` to `irrigation/cmd`
+  Future<void> setSpeed(int speed);
 
   // ─── Historical data ─────────────────────────────────────────────────────
 

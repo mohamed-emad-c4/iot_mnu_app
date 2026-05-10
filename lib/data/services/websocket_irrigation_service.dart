@@ -41,8 +41,21 @@ class WebSocketIrrigationService implements IrrigationService {
         onDone: _onDone,
         cancelOnError: false,
       );
-      onStatusChange?.call(WsStatus.connected);
-      _retrySeconds = 2;
+      // In web_socket_channel >=2.4 the TCP handshake is asynchronous.
+      // If `ready` is not explicitly handled, a connection failure
+      // (SocketException, etc.) becomes an unhandled exception even though
+      // the stream's onError is set. Catch it here and route it through the
+      // normal error path.
+      _channel!.ready
+          .then((_) {
+            if (!_disposed) {
+              onStatusChange?.call(WsStatus.connected);
+              _retrySeconds = 2;
+            }
+          })
+          .catchError((Object error) {
+            if (!_disposed) _onError(error);
+          });
     } catch (_) {
       onStatusChange?.call(WsStatus.error);
       _scheduleReconnect();
@@ -52,6 +65,13 @@ class WebSocketIrrigationService implements IrrigationService {
   void _onMessage(dynamic raw) {
     try {
       final map = jsonDecode(raw as String) as Map<String, dynamic>;
+
+      // ACK messages like {"status":"pump_on"} or {"status":"speed_set","value":200}
+      if (!_isSensorFrame(map)) {
+        _latestPump = _parsePump(map);
+        return;
+      }
+
       final reading = _parseReading(map);
       _latestPump = _parsePump(map);
 
@@ -90,27 +110,35 @@ class WebSocketIrrigationService implements IrrigationService {
 
   // ─── Parsing ─────────────────────────────────────────────────────────────
 
-  // ESP32 sends: {"moisture": int, "pump": bool, "auto_mode": bool}
+  // Sensor frames contain "moisture"; ACK frames contain only "status"
+  bool _isSensorFrame(Map<String, dynamic> map) => map.containsKey('moisture');
+
+  // ESP32 sends: {"moisture","raw_soil","pump","auto_mode","water_cm","water_lvl","pump_speed"}
   SensorReading _parseReading(Map<String, dynamic> map) {
     final moisture = (map['moisture'] as num?)?.toDouble() ?? 0.0;
     final pumpOn = map['pump'] as bool? ?? false;
+    final waterLvl = (map['water_lvl'] as num?)?.toDouble() ?? 0.0;
     return SensorReading(
       moisturePercent: moisture.clamp(0.0, 100.0),
       temperatureCelsius: null,
-      flowRateLitersPerMin: 0.0,
-      tankLevelPercent: 0.0,
+      tankLevelPercent: waterLvl.clamp(0.0, 100.0),
       isPumpRunning: pumpOn,
       timestamp: DateTime.now(),
     );
   }
 
   PumpControl _parsePump(Map<String, dynamic> map) {
-    final pumpOn = map['pump'] as bool? ?? false;
+    final pumpOn = map['pump'] as bool? ?? _latestPump.manualRunRequest;
     final autoMode = map['auto_mode'] as bool? ?? true;
+    // pump_speed is broadcast by ESP32; fall back to last known speed
+    final speed =
+        (map['pump_speed'] as num?)?.toInt() ??
+        (map['value'] as num?)?.toInt() ?? // from speed_set ACK
+        _latestPump.pumpSpeed;
     return PumpControl(
       mode: autoMode ? IrrigationMode.automatic : IrrigationMode.manual,
       manualRunRequest: pumpOn,
-      flowRate: _latestPump.flowRate,
+      pumpSpeed: speed.clamp(0, 255),
       lastChanged: DateTime.now(),
     );
   }
@@ -152,17 +180,15 @@ class WebSocketIrrigationService implements IrrigationService {
     if (mode == IrrigationMode.automatic) {
       _send({'command': 'auto'});
     }
-    _latestPump = _latestPump.copyWith(
-      mode: mode,
-      lastChanged: DateTime.now(),
-    );
+    _latestPump = _latestPump.copyWith(mode: mode, lastChanged: DateTime.now());
   }
 
   @override
-  Future<void> setFlowRate(double rate) async {
-    // ESP32 protocol has no flow-rate command; stored app-side only.
+  Future<void> setSpeed(int speed) async {
+    final clamped = speed.clamp(0, 255);
+    _send({'command': 'set_speed', 'value': clamped});
     _latestPump = _latestPump.copyWith(
-      flowRate: rate.clamp(0.0, 1.0),
+      pumpSpeed: clamped,
       lastChanged: DateTime.now(),
     );
   }

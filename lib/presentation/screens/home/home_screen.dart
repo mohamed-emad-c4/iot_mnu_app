@@ -7,6 +7,8 @@ import '../../../core/widgets/moisture_gauge_widget.dart';
 import '../../../core/widgets/status_chip.dart';
 import '../../../domain/entities/sensor_reading.dart';
 import '../../providers/irrigation_provider.dart';
+import '../../providers/settings_provider.dart';
+import '../setup/ip_setup_screen.dart';
 import 'widgets/pump_status_card.dart';
 import 'widgets/sensor_stats_row.dart';
 import 'widgets/tank_level_card.dart';
@@ -133,35 +135,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // ─── Body ────────────────────────────────────────────────────────
           SliverToBoxAdapter(
             child: sensorAsync.when(
-              loading: () => SizedBox(
-                height: 400,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(
-                          color: AppColors.green500),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Connecting to sensor…',
-                        style: TextStyle(
-                          color: isDark ? Colors.white54 : Colors.black45,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              error: (e, _) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Text(
-                    'Error reading sensor: $e',
-                    style: const TextStyle(color: AppColors.dry),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
+              loading: () => _NoConnectionView(isDark: isDark),
+              error: (e, st) => _NoConnectionView(isDark: isDark),
+
               data: (reading) {
                 final isManual = pumpAsync.valueOrNull?.mode.name == 'manual';
                 final isDry = reading.moisturePercent < 30.0;
@@ -239,7 +215,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       // ─── Stats row ───────────────────────────────────────
                       SensorStatsRow(
                         temperature: reading.temperatureCelsius,
-                        flowRate: reading.flowRateLitersPerMin,
                         lastUpdated: reading.timestamp,
                       ),
                     ],
@@ -249,6 +224,109 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NoConnectionView extends ConsumerWidget {
+  final bool isDark;
+  const _NoConnectionView({required this.isDark});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final wsStatus = ref.watch(wsStatusProvider);
+    final ip = ref.watch(espIpProvider) ?? '—';
+
+    final isConnecting = wsStatus == WsStatus.connecting ||
+        wsStatus == WsStatus.disconnected;
+
+    return SizedBox(
+      height: 420,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon or spinner
+              if (isConnecting)
+                const CircularProgressIndicator(color: AppColors.green500)
+              else
+                Icon(Icons.wifi_off_rounded,
+                    size: 64,
+                    color: isDark ? Colors.white24 : Colors.black26),
+
+              const SizedBox(height: 20),
+
+              Text(
+                isConnecting ? 'Connecting to ESP32…' : 'Cannot reach ESP32',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                isConnecting
+                    ? 'Waiting for data from $ip'
+                    : 'Make sure your phone is connected\nto the ESP32 Wi-Fi (SmartIrrigation)\nand the device is powered on.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.white38 : Colors.black45,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              // Retry hint — only shown when actually failed
+              if (!isConnecting) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Auto-retrying in the background…',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.white24 : Colors.black26,
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 28),
+
+              // Retry button — force a new WebSocket attempt now
+              OutlinedButton.icon(
+                onPressed: () {
+                  ref.invalidate(irrigationServiceProvider);
+                },
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Retry Now'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.green600,
+                  side: BorderSide(color: AppColors.green600),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // Change IP shortcut
+              TextButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const IpSetupScreen(),
+                  ),
+                ),
+                icon: const Icon(Icons.edit_rounded, size: 15),
+                label: Text('Change IP  ($ip)'),
+                style: TextButton.styleFrom(
+                  foregroundColor:
+                      isDark ? Colors.white38 : Colors.black38,
+                  textStyle: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

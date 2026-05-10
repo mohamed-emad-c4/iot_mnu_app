@@ -308,8 +308,6 @@ class _ConnectionCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isMock = ip == null || ip == '__mock__';
-    final displayIp = isMock ? 'Mock data' : ip!;
     final (statusColor, statusLabel) = _statusStyle();
 
     return Container(
@@ -328,14 +326,10 @@ class _ConnectionCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: (isMock ? Colors.grey : statusColor).withAlpha(25),
+                  color: statusColor.withAlpha(25),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
-                  isMock ? Icons.science_outlined : Icons.wifi_rounded,
-                  color: isMock ? Colors.grey : statusColor,
-                  size: 18,
-                ),
+                child: Icon(Icons.wifi_rounded, color: statusColor, size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -343,7 +337,7 @@ class _ConnectionCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isMock ? 'Mock Data Service' : 'ESP32 WebSocket',
+                      'ESP32 WebSocket',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -351,7 +345,7 @@ class _ConnectionCard extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      displayIp,
+                      ip ?? '—',
                       style: TextStyle(
                         fontSize: 11,
                         color: isDark ? Colors.white38 : Colors.black38,
@@ -364,15 +358,15 @@ class _ConnectionCard extends ConsumerWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: (isMock ? AppColors.ok : statusColor).withAlpha(25),
+                  color: statusColor.withAlpha(25),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  isMock ? 'ACTIVE' : statusLabel,
+                  statusLabel,
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: isMock ? AppColors.ok : statusColor,
+                    color: statusColor,
                     letterSpacing: 1,
                   ),
                 ),
@@ -380,47 +374,22 @@ class _ConnectionCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 16),
-          // ── Action buttons ───────────────────────────────────────────────
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => const IpSetupScreen()),
-                  ),
-                  icon: const Icon(Icons.edit_rounded, size: 16),
-                  label: Text(isMock ? 'Connect ESP32' : 'Change IP'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.green600,
-                    side: BorderSide(color: AppColors.green600),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    textStyle: const TextStyle(fontSize: 13),
-                  ),
-                ),
+          // ── Change IP button ─────────────────────────────────────────────
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const IpSetupScreen()),
               ),
-              if (!isMock) ...[
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      await ref
-                          .read(espIpRepositoryProvider)
-                          .clearIp();
-                      ref.read(espIpProvider.notifier).state = '__mock__';
-                    },
-                    icon: const Icon(Icons.science_outlined, size: 16),
-                    label: const Text('Use Mock'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.grey,
-                      side: const BorderSide(color: Colors.grey),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      textStyle: const TextStyle(fontSize: 13),
-                    ),
-                  ),
-                ),
-              ],
-            ],
+              icon: const Icon(Icons.edit_rounded, size: 16),
+              label: const Text('Change IP'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.green600,
+                side: BorderSide(color: AppColors.green600),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                textStyle: const TextStyle(fontSize: 13),
+              ),
+            ),
           ),
         ],
       ),

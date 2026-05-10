@@ -13,7 +13,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/services/irrigation_service.dart';
-import '../../data/services/mock_irrigation_service.dart';
 import '../../data/services/websocket_irrigation_service.dart';
 import '../../domain/entities/pump_control.dart';
 import '../../domain/entities/sensor_reading.dart';
@@ -23,16 +22,9 @@ import 'settings_provider.dart';
 
 final irrigationServiceProvider = Provider<IrrigationService>((ref) {
   final ip = ref.watch(espIpProvider);
-
-  if (ip == null || ip == '__mock__') {
-    final service = MockIrrigationService();
-    ref.onDispose(service.dispose);
-    return service;
-  }
-
-  final service = WebSocketIrrigationService(ipAddress: ip);
+  // ip is guaranteed non-null here — app.dart only shows MainScaffold when ip != null
+  final service = WebSocketIrrigationService(ipAddress: ip!);
   service.onStatusChange = (status) {
-    // Post-frame so we never modify a provider during another provider's build.
     Future.microtask(
       () => ref.read(wsStatusProvider.notifier).state = status,
     );
@@ -73,13 +65,13 @@ class PumpControlNotifier extends AsyncNotifier<PumpControl> {
     await ref.read(irrigationServiceProvider).setIrrigationMode(mode);
   }
 
-  Future<void> setFlowRate(double rate) async {
+  Future<void> setSpeed(int speed) async {
     final current = state.valueOrNull;
     if (current == null) return;
     state = AsyncData(
-      current.copyWith(flowRate: rate, lastChanged: DateTime.now()),
+      current.copyWith(pumpSpeed: speed, lastChanged: DateTime.now()),
     );
-    await ref.read(irrigationServiceProvider).setFlowRate(rate);
+    await ref.read(irrigationServiceProvider).setSpeed(speed);
   }
 }
 

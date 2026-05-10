@@ -12,7 +12,8 @@ class IpSetupScreen extends ConsumerStatefulWidget {
 
 class _IpSetupScreenState extends ConsumerState<IpSetupScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _ipController = TextEditingController();
+  // ESP32 AP mode always assigns itself 192.168.4.1
+  final _ipController = TextEditingController(text: '192.168.4.1');
   bool _loading = false;
 
   static final _ipv4Regex = RegExp(
@@ -22,7 +23,7 @@ class _IpSetupScreenState extends ConsumerState<IpSetupScreen> {
   String? _validateIp(String? value) {
     if (value == null || value.trim().isEmpty) return 'Enter an IP address';
     final match = _ipv4Regex.firstMatch(value.trim());
-    if (match == null) return 'Enter a valid IPv4 address (e.g. 192.168.1.42)';
+    if (match == null) return 'Enter a valid IPv4 address (e.g. 192.168.4.1)';
     for (var i = 1; i <= 4; i++) {
       if (int.parse(match.group(i)!) > 255) {
         return 'Each octet must be 0–255';
@@ -38,12 +39,6 @@ class _IpSetupScreenState extends ConsumerState<IpSetupScreen> {
     final ip = _ipController.text.trim();
     await ref.read(espIpRepositoryProvider).saveIp(ip);
     ref.read(espIpProvider.notifier).state = ip;
-    // app.dart watches espIpProvider — it will swap to MainScaffold automatically
-  }
-
-  Future<void> _onUseMock() async {
-    await ref.read(espIpRepositoryProvider).clearIp();
-    ref.read(espIpProvider.notifier).state = '__mock__';
   }
 
   @override
@@ -78,19 +73,49 @@ class _IpSetupScreenState extends ConsumerState<IpSetupScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Enter the IP address shown in the\nESP32 serial monitor.',
+                    'First connect your phone to the ESP32 Wi-Fi,\nthen tap Connect.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium
                         ?.copyWith(color: Colors.grey.shade600),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
+                  // AP credentials hint card
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Icon(Icons.wifi_rounded,
+                              size: 16, color: Colors.green.shade700),
+                          const SizedBox(width: 6),
+                          Text('ESP32 Access Point',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.green.shade700)),
+                        ]),
+                        const SizedBox(height: 6),
+                        _ApRow('SSID', 'SmartIrrigation'),
+                        _ApRow('Password', '12345678'),
+                        _ApRow('IP', '192.168.4.1'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   TextFormField(
                     controller: _ipController,
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true),
                     decoration: InputDecoration(
                       labelText: 'ESP32 IP Address',
-                      hintText: '192.168.1.42',
+                      hintText: '192.168.4.1',
                       prefixIcon: const Icon(Icons.router_rounded),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -115,17 +140,38 @@ class _IpSetupScreenState extends ConsumerState<IpSetupScreen> {
                       label: const Text('Connect'),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  TextButton.icon(
-                    onPressed: _loading ? null : _onUseMock,
-                    icon: const Icon(Icons.science_outlined),
-                    label: const Text('Use Mock Data instead'),
-                  ),
                 ],
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ApRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _ApRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 70,
+            child: Text(label,
+                style: const TextStyle(fontSize: 12, color: Colors.black45)),
+          ),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87)),
+        ],
       ),
     );
   }
